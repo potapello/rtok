@@ -7,7 +7,17 @@ var maindiv = document.getElementById('imagebox');
 var mainpic = null;
 
 var preloadpic = new Image();
+
 var loadtimeout = 0;
+var timeoutfunc = () => {};
+function addTimeout(func, time=5000) {
+    timeoutfunc = func;
+    loadtimeout = setTimeout(timeoutfunc, time);
+};
+function removeTimeout() {
+    clearTimeout(loadtimeout);
+    timeoutfunc = () => {}
+};
 
 function preloadFull(d=false) {
     if(d !== false) {
@@ -36,21 +46,19 @@ function setCourseDiv(comment) {
         <div style="margin: 8px;">
             <font color="#ccc" size="4">${comment}</font>
             <br>
-            <font color="#aaa" size="4">Calibration! Images left: ${calibrate}</font>
+            <font color="#aaa" size="4">Calibration! Good/Perfect images left: ${calibrate}</font>
         </div>`
     } else {
         div.innerHTML = `
         <div style="margin: 8px;">
             <font color="#ccc" size="4">${comment}</font>
             <br>
-            <font color="#aaa" size="4">Current picture rating: ${env.lastrank} | Minimal: ${env.good}</font>
+            <font color="#aaa" size="4" id="picrate">Current picture rating: ${env.lastrank} | Minimal: ${env.good} | Appropriate pics: ${getRatedCount()} / ${database.length-progress}</font>
             <br>
-            <font color="#ccc" size="4">Progress: ${progress} | Page: ${env.page} | Views: ${env.views} | Bad skipped: ${env.bads}</font>
+            <font color="#aaa" size="4">Progress: ${progress} | Page: ${env.page} | Views: ${env.views} | Bad skipped: ${env.bads}</font>
         </div>`
     }
 };
-//      <br>
-//      <font color="#aaa" size="4">Approximate next recommendation: ${apprx}</font>
 
 var env = {
     started: false,
@@ -61,7 +69,7 @@ var env = {
     saved: [],
     //
     good: 0,
-    bad: -10,
+    bad: -20,
     lastrank: 0,
     //
     bads: 0,
@@ -71,7 +79,7 @@ var env = {
     calibrate: true,
 };
 
-var calibrate = 20;
+var calibrate = 15;
 var database = [];
 var progress = 0;
 var buttons = {};
@@ -89,6 +97,17 @@ function loadButtons() {
 };
 function hideButtons() {document.getElementById('buttons').innerHTML = ``};
 
+function showOptions() {
+    document.getElementById('other').innerHTML = `
+        <font color="#aaa" size="4">Change minimal rating</font>
+        <button onclick="updateMinrat(5)" style="width: 50px; height: 50px; padding: 6px; color: whitesmoke; background-color: #000; font-size: large;">+ 5</button>
+        <button onclick="updateMinrat(1)" style="width: 50px; height: 50px; padding: 6px; color: whitesmoke; background-color: #000; font-size: large;">+ 1</button>
+        <button onclick="updateMinrat(-1)" style="width: 50px; height: 50px; padding: 6px; color: whitesmoke; background-color: #000; font-size: large;">- 1</button>
+        <button onclick="updateMinrat(-5)" style="width: 50px; height: 50px; padding: 6px; color: whitesmoke; background-color: #000; font-size: large;">- 5</button>
+        <font color="#aaa" size="4" id="ratingComment">Appropriate pics: ???</font>
+    `
+};
+
 function startTok() {
     console.log('Start Tok!');
     maindiv = document.getElementById('imagebox');
@@ -98,6 +117,7 @@ function startTok() {
     var query = document.getElementById('query').value;
     document.getElementById('initial').innerHTML = '';
     setCourseDiv('Starting...');
+    // showOptions();
     //
     onloadPics = () => {
         var aboba = undefined;
@@ -130,12 +150,14 @@ function picResize(pic) {
 function setPicture(picmeta) {
     preloadFull(false);
     setCourseDiv('Loading next image thumbnail...');
+    addTimeout(() => {rateImage(0); console.warn('Skip picture by timeout (8s.)')}, 8000);
     
     mainpic.src = picmeta.thumb;
     mainpic.meta = picmeta;
     mainpic.onclick = () => {window.open(mainpic.meta.full)};
 
     mainpic.onload = () => {
+        removeTimeout();
         env.views++;
         loadButtons();
         window.scroll(0,0);
@@ -146,7 +168,12 @@ function setPicture(picmeta) {
         picResize(mainpic);
         maindiv.appendChild(mainpic);
         preloadFull(picmeta.full)
-    }
+    };
+
+    // mainpic.onerror = (e) => {
+    //     rateImage(0);
+    //     console.warn(`Skip picture by error!`, e)
+    // }
 };
 
 function sendXML(query=false) {
@@ -177,6 +204,38 @@ function sendXML(query=false) {
         setTimeout(() => {sendXML()}, 5000);
     }
     xhr.send()
+};
+
+function updateMinrat(value) {
+    env.good += value;
+    env.bad = env.good - 20;
+    //  <font color="#aaa" size="4" id="picrate">Current picture rating: ${env.lastrank}</font>
+    var div = document.getElementById('picrate');
+    if(div != null) {
+        document.getElementById('picrate').innerHTML = `Current picture rating: ${env.lastrank} | Minimal: ${env.good} | Appropriate pics: ${getRatedCount()} / ${database.length-progress}`
+    }
+};
+
+function autoRating() {
+    var div = (database.length-progress) / getRatedCount();
+    while(div < 10) {
+        env.good += 5;
+        div = (database.length-progress) / getRatedCount()
+    };
+    while(div >= 10) {
+        env.good -= 1;
+        div = (database.length-progress) / getRatedCount()
+    };
+    // display new value
+    updateMinrat(0)
+};
+
+function getRatedCount() {
+    var count = 0;
+    for(let i = progress; i < database.length; i++) {
+        if(countTagRating(database[i].tags) >= env.good) {count++}
+    };
+    return count
 };
 
 function tagCounter(value) {
@@ -257,11 +316,18 @@ function loadNewPics(onload = () => {}) {
 function rateImage(value) {
     // hide buttons
     hideButtons();
-    // add tag points
-    tagCounter(value);
+    // add tag points & update rating comment
+    tagCounter(Number(value));
+    updateMinrat(0);
     // delete if bad, point as later if normal
+    // hide if Disgusting
+    if(Number(value) < -1) {
+        maindiv.innerHTML = '';
+        window.scroll(0,0)
+    };
     if(env.calibrate) {
-        calibrate--;
+        // calibrate progress on good pics
+        if(Number(value) > 0) {calibrate--};
         if(calibrate <= 0) {
             // end of calibrouka
             env.calibrate = false;
@@ -276,6 +342,7 @@ function rateImage(value) {
         }
     } else {
         rateImage = rateImageAfterCalibrate;
+        autoRating();
         getNextImage()
     }
 };
@@ -285,14 +352,17 @@ function rateImageAfterCalibrate(value) {
     preloadFull(false);
     // hide buttons
     hideButtons();
-    // add tag points
-    tagCounter(value);
+    // add tag points & update rating comment
+    tagCounter(Number(value));
+    updateMinrat(0);
+    autoRating();
     // delete if bad, point as later if normal
-    if(value < 0) {
+    if(Number(value) < 0) {
         delete database[progress];
         // hide if Disgusting
-        if(value < -1) {
+        if(Number(value) < -1) {
             maindiv.innerHTML = '';
+            window.scroll(0,0)
         }
     } else {
         // saving if good/perfect
@@ -306,7 +376,11 @@ function rateImageAfterCalibrate(value) {
     };
     // get next picture
     progress++;
-    getNextImage(false)
+    getNextImage(false);
+    // load new pics, if close to end
+    if(database.length - progress < 300) {
+        sendXML()
+    }
 };
 
 var style = {
