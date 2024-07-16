@@ -257,7 +257,6 @@ function countTagRating(tags) {
             rating += env.tagpool[tags[t]]
         }
     };
-    env.lastrank = rating;
     return rating
 };
 
@@ -274,6 +273,7 @@ function filterBaseFrom() {
                     env.bads++;
                     if(rating <= env.bad) {delete database[progress]}
                 } else {
+                    env.lastrank = rating;
                     return p
                 }
             };
