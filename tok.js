@@ -3,8 +3,18 @@ BASE_URL = 'https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1';
 var xhr = new XMLHttpRequest();
 const domParser = new DOMParser();
 
-var maindiv = document.getElementById('imagebox');
-var mainpic = null;
+var maindiv = null;
+var mainpic = {};
+mainpic.meta = {};
+mainpic.meta.type = '???';
+
+var mainplayer = document.createElement('video');
+mainplayer.volume = 0;
+mainplayer.src = '';
+mainplayer.loop = true;
+mainplayer.controls = true;
+mainplayer.oncanplay = () => {mainplayer.play()};
+mainplayer.style = 'width: 100%;';
 
 var preloadpic = new Image();
 
@@ -24,15 +34,19 @@ function preloadFull(d=false) {
         if(d.slice(d.lastIndexOf('.')) != '.mp4') {
             preloadpic.src = d;
             preloadpic.onload = () => {
-                setCourseDiv('Full loaded! Waiting for picture rate...');
+                setCourseDiv(`Full loaded!`);
                 mainpic.src = String(preloadpic.src);
                 maindiv.innerHTML = '';
                 maindiv.appendChild(mainpic);
             }
         } else {
-            setCourseDiv('Cannot load full (full is video file)')
+            setCourseDiv(`Full loaded!`);
+            mainplayer.src = mainpic.meta.full;
+            maindiv.innerHTML = '';
+            maindiv.appendChild(mainplayer);
         }
     } else {
+        mainplayer.src = '';
         preloadpic.src = '';
         preloadpic.onload = () => {}
     }
@@ -40,17 +54,18 @@ function preloadFull(d=false) {
 
 function setCourseDiv(comment) {
     var div = document.getElementById('course');
-    // var clr = load > 2 ? '#ccc' : '#f44'; 
+    var type = mainpic.meta !== undefined ? mainpic.meta.type : '???';
+    // var clr = load > 2 ? '#ccc' : '#f44';
     if(env.calibrate) {
         div.innerHTML = `
-        <div style="margin: 8px;">
-            <font color="#ccc" size="4">${comment}</font>
+        <div class='mainfont' style="padding: 12px;">
+            <font color="#ccc" size="4">[${type}] ${comment}</font>
             <br>
             <font color="#aaa" size="4">Calibration! Good/Perfect images left: ${calibrate}</font>
         </div>`
     } else {
         div.innerHTML = `
-        <div style="margin: 8px;">
+        <div class='mainfont' style="padding: 12px;">
             <font color="#ccc" size="4">${comment}</font>
             <br>
             <font color="#aaa" size="4" id="picrate">Current picture rating: ${env.lastrank} | Minimal: ${env.good} | Appropriate pics: ${getRatedCount()} / ${database.length-progress}</font>
@@ -61,10 +76,10 @@ function setCourseDiv(comment) {
 };
 
 var env = {
-    started: false,
     request: false,
+    query: '',
+    pagecount: 0,
     //
-    course: '',
     page: 0,
     saved: [],
     //
@@ -79,20 +94,23 @@ var env = {
     calibrate: true,
 };
 
-var calibrate = 15;
+var calibrate = 12;
 var database = [];
 var progress = 0;
 var buttons = {};
+
+var randompages = false;
+var queryOnly = false;
 
 function loadButtons() {
     var bwid = Math.floor((style.image * 0.7) / 5);
     var bh = Math.floor(bwid / 2);
     document.getElementById('buttons').innerHTML = `
-        <button style="border-color: yellow; width: ${bwid}px; height: ${bh}px; color: yellow; background-color: #330; font-size: large;" onclick="rateImage(2)">Perfect</button>
-        <button style="border-color: lime; width: ${bwid}px; height: ${bh}px; color: lime; background-color: #030; font-size: large;" onclick="rateImage(1)">Good</button>
-        <button style="border-color: lightblue; width: ${bwid}px; height: ${bh}px; color: lightblue; background-color: #003; font-size: large;" onclick="rateImage(0)">Skip</button>
-        <button style="border-color: red; width: ${bwid}px; height: ${bh}px; color: red; background-color: #200; font-size: large;" onclick="rateImage(-1)">Bad</button>
-        <button style="border-color: magenta; width: ${bwid}px; height: ${bh}px; color: magenta; background-color: #202; font-size: large;" onclick="rateImage(-2)">Disgusting</button>
+        <button class='ratebuttons' style="border-color: #ffff44; width: ${bwid}px; height: ${bh}px; color: #ffff44;" onclick="rateImage(2)">Perfect</button>
+        <button class='ratebuttons' style="border-color: #44ff44; width: ${bwid}px; height: ${bh}px; color: #44ff44;" onclick="rateImage(1)">Good</button>
+        <button class='ratebuttons' style="border-color: #8888ff; width: ${bwid}px; height: ${bh}px; color: #8888ff;" onclick="rateImage(0)">Skip</button>
+        <button class='ratebuttons' style="border-color: #ff44ff; width: ${bwid}px; height: ${bh}px; color: #ff44ff;" onclick="rateImage(-1)">Bad</button>
+        <button class='ratebuttons' style="border-color: #ff4444; width: ${bwid}px; height: ${bh}px; color: #ff4444;" onclick="rateImage(-2)">Disgusting</button>
     `
 };
 function hideButtons() {document.getElementById('buttons').innerHTML = ``};
@@ -108,13 +126,28 @@ function showOptions() {
     `
 };
 
+function showPictureInfo() {
+    document.getElementById('other').innerHTML = `
+        <hr align="center" width="100%" color="#fff" style="margin: 0px; border-width: 0px; height: 3px;"/>
+        <div style="padding: 8px;">
+            <font color="#ccc" size="5">Top tags</font><br>
+            <font id="goodtags"></font>
+        </div>
+        <br><hr align="center" width="100%" color="#fff" style="margin: 0px; border-width: 0px; height: 3px;"/>
+        <div style="padding: 8px;">
+            <font color="#ccc" size="5">Current picture tags</font><br>
+            <font id="pictags"></font>
+        </div>
+    `
+};
+
 function startTok() {
-    console.log('Start Tok!');
+    console.log('Starting...!');
     maindiv = document.getElementById('imagebox');
     maindiv.innerHTML = '';
     mainpic = document.createElement('img');
     //
-    var query = document.getElementById('query').value;
+    env.query = document.getElementById('query').value;
     document.getElementById('initial').innerHTML = '';
     setCourseDiv('Starting...');
     // showOptions();
@@ -124,9 +157,10 @@ function startTok() {
         while(aboba === undefined) {
             aboba = database[Math.floor(Math.random() * (database.length - 0.001))]
         }
-        setPicture(aboba)
+        showPictureInfo();
+        setPicture(aboba);
     };
-    sendXML(query)
+    sendXML(true, false)
 };
 
 function picResize(pic) {
@@ -150,38 +184,44 @@ function picResize(pic) {
 function setPicture(picmeta) {
     preloadFull(false);
     setCourseDiv('Loading next image thumbnail...');
+
+    removeTimeout();
     addTimeout(() => {rateImage(0); console.warn('Skip picture by timeout (8s.)')}, 8000);
     
     mainpic.src = picmeta.thumb;
     mainpic.meta = picmeta;
-    mainpic.onclick = () => {window.open(mainpic.meta.full)};
+    // mainpic.onclick = () => {window.open(mainpic.meta.full)};
+
+    document.getElementById('goodtags').innerHTML = getTopTags();
+    document.getElementById('pictags').innerHTML = tagsStringify(picmeta.tags);
 
     mainpic.onload = () => {
         removeTimeout();
         env.views++;
         loadButtons();
-        window.scroll(0,0);
+        document.getElementsByClassName('top')[0].scroll(0,0);
         maindiv.innerHTML = '';
         setCourseDiv('Loading full...');
+
+        document.getElementById('bg').style.backgroundImage = `url(${mainpic.src})`;
 
         mainpic.onload = () => {};
         picResize(mainpic);
         maindiv.appendChild(mainpic);
         preloadFull(picmeta.full)
-    };
-
-    // mainpic.onerror = (e) => {
-    //     rateImage(0);
-    //     console.warn(`Skip picture by error!`, e)
-    // }
+    }
 };
 
-function sendXML(query=false) {
-    query === false
-    ? xhr.open('GET', `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&pid=${env.page}&limit=1000`)
-    : xhr.open('GET', `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&limit=1000&tags=${query}`);
+function sendXML(query=false, random=true) {
+    var page = random
+    ? Math.floor(Math.random() * (env.pagecount - 0.001))
+    : env.page;
+    query
+    ? xhr.open('GET', `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&limit=1000&pid=${page}`)
+    : xhr.open('GET', `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&limit=1000&tags=${env.query}&pid=${page}`);
     xhr.responseType = 'document';
     xhr.onload = () => {
+        env.pagecount = Math.floor(Number(xhr.response.querySelector('posts').getAttribute('count')) / 1000);
         xhr.response.querySelectorAll('post').forEach((e) => {
             var item = {};
             item.full = e.getAttribute('file_url');
@@ -190,9 +230,11 @@ function sendXML(query=false) {
             item.score = Number(e.getAttribute('score'));
 
             item.size = {};
-            item.later = false;
             item.size.x = Number(e.getAttribute('width'));
             item.size.y = Number(e.getAttribute('height'));
+
+            item.later = false;
+            item.type = item.full.slice(item.full.lastIndexOf('.')+1).toUpperCase();
 
             database.push(item)
         });
@@ -260,6 +302,35 @@ function countTagRating(tags) {
     return rating
 };
 
+function tagsStringify(tags) {
+    var str = '';
+    var count = 0;
+    for(var t in tags) {
+        if(tags[t] == '' || tags[t] == ' ') {continue};
+        if(env.tagpool[tags[t]] !== undefined) {
+            count = env.tagpool[tags[t]]
+        } else {
+            count = 0
+        };
+        str += `${tags[t]}[${count}], `
+    };
+    return str.slice(0, str.length-2)
+};
+
+function getTopTags() {
+    var tags = [], str = '';
+    for(var t in env.tagpool) {
+        if(t == '' || t == ' ') {continue};
+        tags.push([t, env.tagpool[t]])
+    };
+    tags.sort((a, b) => {return +b[1] - (+a[1])});
+    var iter = 20 > tags.length ? tags.length : 20;
+    for(var i=0; i<iter; i++) {
+        str += `${tags[i][0]}[${tags[i][1]}], `
+    };
+    return str.slice(0, str.length-2)
+};
+
 function filterBaseFrom() {
     while(progress < database.length) {
         // skip deleted pics
@@ -276,7 +347,7 @@ function filterBaseFrom() {
                     env.lastrank = rating;
                     return p
                 }
-            };
+            }
         };
         progress++
     };
@@ -313,7 +384,14 @@ function loadNewPics(onload = () => {}) {
     setTimeout(sendXML, 500)
 };
 
+function likeImage(src) {
+    env.saved.push(src)
+};
+
 function rateImage(value) {
+    // stop preload full & timeout
+    removeTimeout();
+    preloadFull(false);
     // hide buttons
     hideButtons();
     // add tag points & update rating comment
@@ -323,11 +401,15 @@ function rateImage(value) {
     // hide if Disgusting
     if(Number(value) < -1) {
         maindiv.innerHTML = '';
-        window.scroll(0,0)
+        document.getElementById('bg').style.backgroundImage = ``;
+        document.getElementsByClassName('top')[0].scroll(0,0);
     };
     if(env.calibrate) {
         // calibrate progress on good pics
-        if(Number(value) > 0) {calibrate--};
+        if(Number(value) > 0) {
+            likeImage(mainpic.src);
+            calibrate--
+        };
         if(calibrate <= 0) {
             // end of calibrouka
             env.calibrate = false;
@@ -350,11 +432,11 @@ function rateImage(value) {
 function rateImageAfterCalibrate(value) {
     // stop preload full
     preloadFull(false);
+    removeTimeout();
     // hide buttons
     hideButtons();
     // add tag points & update rating comment
     tagCounter(Number(value));
-    updateMinrat(0);
     autoRating();
     // delete if bad, point as later if normal
     if(Number(value) < 0) {
@@ -362,15 +444,12 @@ function rateImageAfterCalibrate(value) {
         // hide if Disgusting
         if(Number(value) < -1) {
             maindiv.innerHTML = '';
-            window.scroll(0,0)
+            document.getElementById('bg').style.backgroundImage = ``;
+            document.getElementsByClassName('top')[0].scroll(0,0);
         }
     } else {
         // saving if good/perfect
-        if(value > 0) {
-            var save = new Image();
-            save.src = mainpic.src;
-            env.saved.push(save)
-        };
+        if(value > 0) {likeImage(mainpic.src)};
         // set as visible later
         database[progress].later = true
     };
@@ -379,6 +458,7 @@ function rateImageAfterCalibrate(value) {
     getNextImage(false);
     // load new pics, if close to end
     if(database.length - progress < 300) {
+        onloadPics = () => {};
         sendXML()
     }
 };

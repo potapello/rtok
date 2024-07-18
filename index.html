@@ -1,48 +1,122 @@
 <!DOCTYPE html>
 <html>
     <head>
-        <meta name="application-name" content="rAPP">
+        <meta name="application-name" content="r34tok">
         <meta http-equiv="Permissions-Policy" content="interest-cohort=()"></meta>
         <!-- <link rel="shortcut icon" href=""></link> -->
     </head>
     <style>
-        html {
-            background-color: #000;
-        }
         body {
-            position: relative;
-            background-color: #2b2b31;
+            display: inline-block;
+            position: absolute;
             margin: 0px;
-            height: 100%;
+            height:100%;
             width: 0px;
             left: 0px;
-        };
+            overflow: hidden;
+        }
+        html {
+            position:sticky;
+            height: 100%;
+            width: 100%;
+            background-color: #000;
+        }
+        .layered {
+            display: inline-block;
+            position: absolute;
+            width: 100%;
+            height: 100%;
+        }
+        .bg {
+            background-size:cover;
+            background-position: center;
+            position: absolute;
+            filter: blur(30px);
+            width: 100%;
+            left: 0;
+        }
+        .top {
+            width: 100%;
+            overflow-x: hidden;
+            overflow-y: auto;
+            align-content: top;
+        }
+        ::-webkit-scrollbar {
+            display: none;
+        }
+        #course {
+            width: 90%;
+            background-color: #000a;
+            clip-path: inset(0 round 20px);
+        }
+        .ratebuttons {
+            font-size: x-large;
+            background-color: #000a;
+            margin-left: 5px;
+            margin-right: 5px;
+            border-width: 4px;
+        }
+        #query {
+            font-size: xx-large;
+        }
+        .startbutton {
+            margin: 6px;
+            width: 25%; 
+            height: 70px; 
+            padding: 6px; 
+            color: whitesmoke; 
+            border-color: whitesmoke; 
+            background-color: #000; 
+            font-size: xx-large;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .mainfont {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        #other {
+            width: 90%;
+            background-color: #000a;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: small;
+            color: #aaa;
+        }
+        @keyframes logo {
+            0% {color: red;}
+            14% {color: orange;}
+            29% {color: yellow;}
+            43% {color: green;}
+            57% {color: lightblue;}
+            72% {color: blue;}
+            86% {color: purple;}
+            100% {color: red;}
+        }
     </style>
     <body>
         <title>r34tok</title>
         <script type="text/javascript" src="tok.js"></script>
-        <!---->
-        <center>
-            <font color="#fff" size="7">r34tok</font><br>
-            <div id="initial">
-                <div style="padding: 6px;">
-                    <textarea id='query' placeholder="Write tags" autofocus="true" style="width: 50%; height: 35px"></textarea><br>
-                    <button onclick="startTok();" style="margin: 6px; width: 25%; height: 70px; padding: 6px; color: whitesmoke; background-color: #000; font-size: large;">Start</button>
-                    <hr align="center" width="100%" color="#fff" style="margin: 0px; border-width: 0px; height: 3px;"/>
+        <div class="bg layered" id="bg" style="background-image: '';"></div>
+        <div class="top layered">
+            <!---->
+            <center>
+                <font color="#fff" class="mainfont" style="animation: logo 10s infinite normal; font-size: 500%;">r34tok</font><br>
+                <div id="initial">
+                    <div style="padding: 6px;">
+                        <textarea id='query' placeholder="Write tags" autofocus="true" rows="3" style="width: 70%;"></textarea><br>
+                        <button onclick="startTok();" class="startbutton">Start</button>
+                    </div>
                 </div>
-            </div>
-            <div id="imagebox">
-                <div style="margin: 6px;"><font color="#fff" size="5">Write initial request (search will be better) and press "Start" to calibrate</font></div>
-            </div>
-            <div id="course">
-                <div style="margin: 6px;"><font color="#aaa" size="4">prikol by potapello</font></div>
-            </div>
-            <hr align="center" width="100%" color="#fff" style="margin: 0px; border-width: 0px; height: 3px;"/>
-            <div id="buttons" style="padding: 8px;">
-            </div>
-            <hr align="center" width="100%" color="#fff" style="margin: 0px; border-width: 0px; height: 3px;"/>
-            <!-- <div id="other" style="padding: 8px;">
-            </div> -->
-        </center>
+                <div id="imagebox">
+                    <div class='mainfont' style="margin: 6px;"><font color="#fff" size="5">Write initial request (search will be better) and press "Start" to calibrate</font></div>
+                </div>
+                <div id="course">
+                    <div class='mainfont' style="margin: 6px;"><font color="#aaa" size="4">prikol by potapello</font></div>
+                </div>
+                <!-- <hr align="center" width="100%" color="#fff" style="margin: 0px; border-width: 0px; height: 3px;"/> -->
+                <div id="buttons" class="mainfont" style="padding: 8px; bottom: 0px">
+                </div>
+                <div id="other">
+                </div>
+            </center>
+        </div>
     </body>
 </html>
