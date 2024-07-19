@@ -221,7 +221,7 @@ function sendXML(query=false, random=true) {
     : xhr.open('GET', `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&limit=1000&tags=${env.query}&pid=${page}`);
     xhr.responseType = 'document';
     xhr.onload = () => {
-        env.pagecount = Math.floor(Number(xhr.response.querySelector('posts').getAttribute('count')) / 1000);
+        // env.pagecount = Math.floor(Number(xhr.response.querySelector('posts').getAttribute('count')) / 1000);
         xhr.response.querySelectorAll('post').forEach((e) => {
             var item = {};
             item.full = e.getAttribute('file_url');
