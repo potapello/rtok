@@ -215,6 +215,7 @@ setTimeout(showLastSession, 1000);
 
 function openHistory() {
     var div = document.getElementsByClassName('top')[0];
+    div.scroll(0,0);
     divtok = div.innerHTML;
     div.innerHTML = `<font color="#ccc" size="5" style="padding: 20px;">Length: ${tokhistory.length}/1000 | Oldest save: ${tokhistory[tokhistory.length-1][2]} | Scroll down to upload older images</font><br><br>`;
 
