@@ -50,7 +50,7 @@
             clip-path: inset(0 round 20px);
         }
         .ratebuttons {
-            font-size: x-large;
+            font-size: xx-large;
             background-color: #000a;
             margin-left: 5px;
             margin-right: 5px;
@@ -58,6 +58,8 @@
         }
         #query {
             font-size: xx-large;
+            max-width: 90%;
+            max-height: 40%;
         }
         .startbutton {
             margin: 6px;
@@ -70,6 +72,16 @@
             font-size: xx-large;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
+        .optionbutton {
+            margin: 8px;
+            width: 25%;
+            height: 50px; 
+            font-size: x-large;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #aad;
+            border-color: #aaa;
+            background-color: #000;
+        }
         .mainfont {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
@@ -81,32 +93,43 @@
             color: #aaa;
         }
         @keyframes logo {
-            0% {color: red;}
-            14% {color: orange;}
-            29% {color: yellow;}
-            43% {color: green;}
-            57% {color: lightblue;}
-            72% {color: blue;}
-            86% {color: purple;}
-            100% {color: red;}
+            0% {color: pink;}
+            17% {color:orange;}
+            33% {color: yellow;}
+            50% {color: lime;}
+            67% {color:lightskyblue;}
+            83% {color: magenta;}
+            100% {color: pink;}
         }
     </style>
     <body>
         <title>r34tok</title>
         <script type="text/javascript" src="tok.js"></script>
         <div class="bg layered" id="bg" style="background-image: '';"></div>
+        <div class="layered" style="background-color: #0005; filter: blur(35px);"></div>
         <div class="top layered">
             <!---->
             <center>
                 <font color="#fff" class="mainfont" style="animation: logo 10s infinite normal; font-size: 500%;">r34tok</font><br>
                 <div id="initial">
                     <div style="padding: 6px;">
-                        <textarea id='query' placeholder="Write tags" autofocus="true" rows="3" style="width: 70%;"></textarea><br>
+                        <textarea id='query' placeholder="Tags..." autofocus="true" rows="3" style="width: 70%;"></textarea><br>
                         <button onclick="startTok();" class="startbutton">Start</button>
                     </div>
                 </div>
                 <div id="imagebox">
-                    <div class='mainfont' style="margin: 6px;"><font color="#fff" size="5">Write initial request (search will be better) and press "Start" to calibrate</font></div>
+                    <div class='mainfont' style="margin: 6px;">
+                        <font color="#fff" size="5">Write tags (if you want), select options & press "Start" to calibrate</font>
+                        <br> <br>
+                        <font color="#fff" size="5" style="padding-bottom: 16px;">Options (click to change)</font><br>
+                        <font color="#aad" size="5">
+                            Use writed tags: <button id="opt-query" class="optionbutton" onclick="optionQuery()">for calibration</button>
+                            <br>
+                            Page view order: <button id="opt-order" class="optionbutton" onclick="optionOrder()">from recent posts</button>
+                            <br>
+                            Calibration length: <button id="opt-calib" class="optionbutton" onclick="calibrationLength()">short (10)</button>
+                        </font>
+                    </div>
                 </div>
                 <div id="course">
                     <div class='mainfont' style="margin: 6px;"><font color="#aaa" size="4">prikol by potapello</font></div>

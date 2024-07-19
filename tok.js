@@ -4,6 +4,9 @@ var xhr = new XMLHttpRequest();
 const domParser = new DOMParser();
 
 var maindiv = null;
+var divtok = null;
+var divlikes = null;
+
 var mainpic = {};
 mainpic.meta = {};
 mainpic.meta.type = '???';
@@ -58,19 +61,19 @@ function setCourseDiv(comment) {
     // var clr = load > 2 ? '#ccc' : '#f44';
     if(env.calibrate) {
         div.innerHTML = `
-        <div class='mainfont' style="padding: 12px;">
+        <div class='mainfont' style="padding: 12px; margin-top: 8px;">
             <font color="#ccc" size="4">[${type}] ${comment}</font>
             <br>
             <font color="#aaa" size="4">Calibration! Good/Perfect images left: ${calibrate}</font>
         </div>`
     } else {
         div.innerHTML = `
-        <div class='mainfont' style="padding: 12px;">
-            <font color="#ccc" size="4">${comment}</font>
+        <div class='mainfont' style="padding: 12px; margin-top: 8px;">
+            <font color="#ccc" size="4">[${type}] ${comment}</font>
             <br>
             <font color="#aaa" size="4" id="picrate">Current picture rating: ${env.lastrank} | Minimal: ${env.good} | Appropriate pics: ${getRatedCount()} / ${database.length-progress}</font>
             <br>
-            <font color="#aaa" size="4">Progress: ${progress} | Page: ${env.page} | Views: ${env.views} | Bad skipped: ${env.bads}</font>
+            <font color="#aaa" size="4">Progress: ${progress} | Page: ${env.page}/${env.pagecount} | Views: ${env.views} | Bad skipped: ${env.bads}</font>
         </div>`
     }
 };
@@ -94,13 +97,50 @@ var env = {
     calibrate: true,
 };
 
-var calibrate = 12;
+var calibrate = 10;
 var database = [];
 var progress = 0;
 var buttons = {};
 
+var tokhistory = [];
+var historyProgress = 0;
+var hisloaded = false;
+
 var randompages = false;
 var queryOnly = false;
+
+function optionOrder() {
+    if(randompages) {
+        randompages = false;
+        document.getElementById('opt-order').innerHTML = 'from recent posts'
+    } else {
+        randompages = true;
+        document.getElementById('opt-order').innerHTML = 'randomized'
+    }
+};
+
+function optionQuery() {
+    if(queryOnly) {
+        queryOnly = false;
+        document.getElementById('opt-query').innerHTML = 'for calibration'
+    } else {
+        queryOnly = true;
+        document.getElementById('opt-query').innerHTML = 'for all posts'
+    }
+};
+
+function calibrationLength() {
+    if(calibrate == 10) {
+        calibrate = 15;
+        document.getElementById('opt-calib').innerHTML = 'medium (15)'
+    } else if(calibrate == 15) {
+        calibrate = 20;
+        document.getElementById('opt-calib').innerHTML = 'long (20)'
+    } else {
+        calibrate = 10;
+        document.getElementById('opt-calib').innerHTML = 'short (10)'
+    }
+};
 
 function loadButtons() {
     var bwid = Math.floor((style.image * 0.7) / 5);
@@ -110,39 +150,180 @@ function loadButtons() {
         <button class='ratebuttons' style="border-color: #44ff44; width: ${bwid}px; height: ${bh}px; color: #44ff44;" onclick="rateImage(1)">Good</button>
         <button class='ratebuttons' style="border-color: #8888ff; width: ${bwid}px; height: ${bh}px; color: #8888ff;" onclick="rateImage(0)">Skip</button>
         <button class='ratebuttons' style="border-color: #ff44ff; width: ${bwid}px; height: ${bh}px; color: #ff44ff;" onclick="rateImage(-1)">Bad</button>
-        <button class='ratebuttons' style="border-color: #ff4444; width: ${bwid}px; height: ${bh}px; color: #ff4444;" onclick="rateImage(-2)">Disgusting</button>
+        <button class='ratebuttons' style="border-color: #ff4444; width: ${bwid}px; height: ${bh}px; color: #ff4444;" onclick="rateImage(-2)">Junk</button>
     `
 };
 function hideButtons() {document.getElementById('buttons').innerHTML = ``};
 
-function showOptions() {
-    document.getElementById('other').innerHTML = `
-        <font color="#aaa" size="4">Change minimal rating</font>
-        <button onclick="updateMinrat(5)" style="width: 50px; height: 50px; padding: 6px; color: whitesmoke; background-color: #000; font-size: large;">+ 5</button>
-        <button onclick="updateMinrat(1)" style="width: 50px; height: 50px; padding: 6px; color: whitesmoke; background-color: #000; font-size: large;">+ 1</button>
-        <button onclick="updateMinrat(-1)" style="width: 50px; height: 50px; padding: 6px; color: whitesmoke; background-color: #000; font-size: large;">- 1</button>
-        <button onclick="updateMinrat(-5)" style="width: 50px; height: 50px; padding: 6px; color: whitesmoke; background-color: #000; font-size: large;">- 5</button>
-        <font color="#aaa" size="4" id="ratingComment">Appropriate pics: ???</font>
-    `
-};
-
 function showPictureInfo() {
     document.getElementById('other').innerHTML = `
         <hr align="center" width="100%" color="#fff" style="margin: 0px; border-width: 0px; height: 3px;"/>
-        <div style="padding: 8px;">
+        <div style="padding: 16px;">
             <font color="#ccc" size="5">Top tags</font><br>
             <font id="goodtags"></font>
         </div>
-        <br><hr align="center" width="100%" color="#fff" style="margin: 0px; border-width: 0px; height: 3px;"/>
-        <div style="padding: 8px;">
+        <hr align="center" width="100%" color="#fff" style="margin: 0px; border-width: 0px; height: 3px;"/>
+        <div style="padding: 16px;">
             <font color="#ccc" size="5">Current picture tags</font><br>
             <font id="pictags"></font>
         </div>
     `
 };
 
+function showLastSession() {
+    var save = haveLastSession();
+    if(save != false) {
+        save = JSON.parse(save);
+        env.tagpool = save.env.tagpool;
+        var toptags = getTopTags();
+        env.tagpool = {};
+        document.getElementById('other').innerHTML = `
+        <hr align="center" width="100%" color="#fff" style="margin: 0px; border-width: 0px; height: 3px;"/>
+        <div style="padding: 8px;">
+            <font color="#ccc" size="5">Last session - ${save.date}</font><br>
+            <font color="#aaa" size="4">Query: ${save.env.query}</font><br>
+            <font color="#aaa" size="4">Randomize pages: ${save.randompages} | Only query: ${save.queryOnly} | Calibrated: ${!save.env.calibrate}</font><br>
+            <font color="#aaa" size="4">Progress: ${save.progress} | Page: ${save.env.page} | Minimal: ${save.env.good} | Views: ${save.env.views}</font><br>
+            <font color="#aaa" size="4">Top tags: </font>
+            <font color="#999" size="4">${toptags}</font>
+            <br>
+            <button class="startbutton load" onclick="loadSession();" style="margin-top: 14px;">Load session</button>
+        `
+    } else {
+        document.getElementById('other').innerHTML = `
+            <hr align="center" width="100%" color="#fff" style="margin: 0px; border-width: 0px; height: 3px;"/>
+            <div style="padding: 8px;">
+            <font color="#ccc" size="5">No last session save.</font><br>
+        `
+    };
+    //
+    var his = localStorage.getItem('rtokSaved');
+    if(his != null && his != 'null') {
+        tokhistory = JSON.parse(his);
+        document.getElementById('other').innerHTML += `
+            <button class="startbutton load" onclick="openHistory();">Open history</button>
+            </div>
+        `
+    } else {
+        document.getElementById('other').innerHTML += `
+            <font color="#ccc" size="5">No saved history.</font><br>
+            </div>
+        `
+    }
+};
+setTimeout(showLastSession, 1000);
+
+function openHistory() {
+    var div = document.getElementsByClassName('top')[0];
+    divtok = div.innerHTML;
+    div.innerHTML = `<font color="#ccc" size="5" style="padding: 20px;">Length: ${tokhistory.length}/1000 | Oldest save: ${tokhistory[tokhistory.length-1][2]} | Scroll down to upload older images</font><br><br>`;
+
+    var scrollfunc = (e) => {
+        console.log('try to load his', e);
+        if(!hisloaded) {
+            var div = document.getElementsByClassName('top')[0];
+            
+            if(tokhistory[historyProgress][0].type != 'MP4') {
+                var pic = document.createElement('img');
+                pic.src = tokhistory[historyProgress][0].thumb;
+                pic.meta = tokhistory[historyProgress][0];
+                pic.style = 'width: 100%';
+                pic.onload = () => {
+                    pic.src = pic.meta.full;
+                    pic.onload = () => {}
+                }
+            } else {
+                var pic = document.createElement('video');
+                pic.volume = 0;
+                pic.src = tokhistory[historyProgress][0].full;
+                pic.loop = true;
+                pic.controls = true;
+                pic.poster = tokhistory[historyProgress][0].thumb;
+                pic.oncanplay = () => {};
+                pic.style = 'width: 100%;';
+            };
+
+            var val = tokhistory[historyProgress][1] == 1 ? 'Good' : 'Perfect';
+            div.innerHTML += `<font color="#ccc" size="5" style="padding: 16px;">${tokhistory[historyProgress][2]} | ${val}</font>`
+            div.appendChild(pic);
+
+            if(historyProgress < tokhistory.length-1) {
+                historyProgress++
+            } else {
+                hisloaded = true;
+                document.getElementsByClassName('top')[0].removeEventListener('scrollend', div.scrollfunc)
+            }
+        }
+    };
+    
+    div.scrollfunc = scrollfunc;
+    div.addEventListener('scrollend', scrollfunc);
+
+    // load 10 starting images ***
+    var len = 10 > tokhistory.length ? tokhistory.length : 10;
+    for(let i = 0; i < len; i++) {scrollfunc()};
+};
+
+function saveSession() {
+    var envs = JSON.parse(JSON.stringify(env));
+    delete envs.saved;
+    var save = {
+        env: envs,
+        calibrate: calibrate,
+        randompages: randompages,
+        queryOnly: queryOnly,
+        progress: progress,
+        mainpic: mainpic.meta,
+        divtok: document.getElementsByClassName('top')[0].innerHTML,
+        date: new Date(),
+    };
+    localStorage.setItem('rtokLastSession', JSON.stringify(save));
+};
+
+function haveLastSession() {
+    var save = localStorage.getItem('rtokLastSession');
+    return save != null ? localStorage.getItem('rtokLastSession') : false
+};
+
+function loadSession() {
+    //
+    var save = JSON.parse(localStorage.getItem('rtokLastSession'));
+    console.log('Loading last sesssion...');
+    //
+    maindiv = document.getElementById('imagebox');
+    maindiv.innerHTML = '';
+    document.getElementById('initial').innerHTML = '';
+    document.getElementById('other').innerHTML = '';
+    setCourseDiv(`Loading last session [${save.date}]...`);
+    // set values
+    progress = save.progress;
+    calibrate = save.calibrate;
+    queryOnly = save.queryOnly;
+    randompages = save.randompages;
+    // set environ
+    for(var key in save.env) {env[key] = save.env[key]};
+    // onload setting top element
+    onloadPics = () => {
+        // set document
+        document.getElementsByClassName('top')[0].innerHTML = save.divtok;
+        maindiv = document.getElementById('imagebox');
+        maindiv.innerHTML = '';
+        mainpic = document.createElement('img');
+        setPicture(save.mainpic, false)
+    };
+    // get database
+    progress -= Math.floor(progress / 1000) * 1000;
+    // calibrate difference
+    if(!save.env.calibrate) {
+        rateImage = rateImageAfterCalibrate;
+        sendXML(queryOnly, false)
+    } else {
+        sendXML(true, false)
+    }
+};
+
 function startTok() {
-    console.log('Starting...!');
+    console.log('Starting...');
     maindiv = document.getElementById('imagebox');
     maindiv.innerHTML = '';
     mainpic = document.createElement('img');
@@ -150,38 +331,23 @@ function startTok() {
     env.query = document.getElementById('query').value;
     document.getElementById('initial').innerHTML = '';
     setCourseDiv('Starting...');
-    // showOptions();
     //
     onloadPics = () => {
-        var aboba = undefined;
-        while(aboba === undefined) {
-            aboba = database[Math.floor(Math.random() * (database.length - 0.001))]
+        lastCalibratePic = undefined;
+        while(lastCalibratePic === undefined) {
+            lastCalibratePic = database[Math.floor(Math.random() * (database.length - 0.001))]
         }
         showPictureInfo();
-        setPicture(aboba);
+        setPicture(lastCalibratePic);
     };
     sendXML(true, false)
 };
 
 function picResize(pic) {
-    // var xdiff = pic.meta.size.x - style.width;
-    // var ydiff = pic.meta.size.y - style.height * 0.75;
-    // if(xdiff > 0 || ydiff > 0) {
-    //     var scale = 1;
-    //     console.log('rescailed from ', pic.meta.size.x, pic.meta.size.x)
-    //     if(xdiff >= ydiff) {
-    //         scale = style.width / pic.meta.size.x;
-    //     } else {
-    //         scale = (style.height * 0.75) / pic.meta.size.x;
-    //     };
-    //     pic.width = scale * pic.meta.size.x;
-    //     pic.height = scale * pic.meta.size.y;
-    //     console.log('... rescale to ', scale * pic.meta.size.x, scale * pic.meta.size.y)
-    // }
     pic.width = style.image
 };
 
-function setPicture(picmeta) {
+function setPicture(picmeta, save=true) {
     preloadFull(false);
     setCourseDiv('Loading next image thumbnail...');
 
@@ -190,7 +356,6 @@ function setPicture(picmeta) {
     
     mainpic.src = picmeta.thumb;
     mainpic.meta = picmeta;
-    // mainpic.onclick = () => {window.open(mainpic.meta.full)};
 
     document.getElementById('goodtags').innerHTML = getTopTags();
     document.getElementById('pictags').innerHTML = tagsStringify(picmeta.tags);
@@ -209,19 +374,30 @@ function setPicture(picmeta) {
         picResize(mainpic);
         maindiv.appendChild(mainpic);
         preloadFull(picmeta.full)
-    }
+    };
+    if(save) {saveSession()}
 };
 
-function sendXML(query=false, random=true) {
+// document.getElementsByClassName('top')[0].offsetHeight + 100 > (document.getElementsByClassName('top')[0].scrollHeight - document.getElementsByClassName('top')[0].scrollTop)
+
+function sendXML(query=false, random=false) {
     var page = random
     ? Math.floor(Math.random() * (env.pagecount - 0.001))
     : env.page;
-    query
+    !query
     ? xhr.open('GET', `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&limit=1000&pid=${page}`)
     : xhr.open('GET', `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&limit=1000&tags=${env.query}&pid=${page}`);
     xhr.responseType = 'document';
     xhr.onload = () => {
-        // env.pagecount = Math.floor(Number(xhr.response.querySelector('posts').getAttribute('count')) / 1000);
+        // detect api abuse block
+        if(xhr.response.querySelector('response') != null) {
+            if(xhr.response.querySelector('response').getAttribute('success') == 'false') {
+                xhr.onerror(xhr.response.querySelector('response').getAttribute('reason'))
+            }
+        };
+        // work with xml
+        env.pagecount = Math.floor(Number(xhr.response.querySelector('posts').getAttribute('count')) / 1000);
+        env.page = Math.floor(Number(xhr.response.querySelector('posts').getAttribute('offset')) / 1000) - 1; // potomu chto potom `env.page++` budet Taa
         xhr.response.querySelectorAll('post').forEach((e) => {
             var item = {};
             item.full = e.getAttribute('file_url');
@@ -238,12 +414,12 @@ function sendXML(query=false, random=true) {
 
             database.push(item)
         });
-        onloadPics();
-        env.page++
+        env.page++; // for unrandomized pages
+        onloadPics()
     };
-    xhr.onerror = () => {
-        console.error('Error with load pics... Try again after 5s.');
-        setTimeout(() => {sendXML()}, 5000);
+    xhr.onerror = (e) => {
+        console.warn('Error with load pics... Try again after 10s.', e);
+        setTimeout(() => {sendXML(query, random)}, 10000)
     }
     xhr.send()
 };
@@ -274,7 +450,7 @@ function autoRating() {
 
 function getRatedCount() {
     var count = 0;
-    for(let i = progress; i < database.length; i++) {
+    for(var i = progress; i < database.length; i++) {
         if(countTagRating(database[i].tags) >= env.good) {count++}
     };
     return count
@@ -381,13 +557,29 @@ function getNextImage(afterload=true) {
 var onloadPics = () => {};
 function loadNewPics(onload = () => {}) {
     onloadPics = onload;
-    setTimeout(sendXML, 500)
+    setTimeout(() => {sendXML(queryOnly, randompages)}, 500)
 };
 
-function likeImage(src) {
-    env.saved.push(src)
+function likeImage(meta, value) {
+    env.saved.unshift([meta, value, new Date()]);
+    if(env.saved.length > 1000) {
+        env.saved.splice(1000)
+    }
+
+    var save = localStorage.getItem('rtokSaved');
+    if(save != null) {
+        save = JSON.parse(save);
+        save.unshift([meta, value, new Date()]);
+        if(save.length > 1000) {save.splice(1000)};
+        localStorage.setItem('rtokSaved', JSON.stringify(save))
+    } else {
+        save = [];
+        save.unshift([meta, value, new Date()]);
+        localStorage.setItem('rtokSaved', JSON.stringify(save))
+    }
 };
 
+var lastCalibratePic = {};
 function rateImage(value) {
     // stop preload full & timeout
     removeTimeout();
@@ -404,28 +596,30 @@ function rateImage(value) {
         document.getElementById('bg').style.backgroundImage = ``;
         document.getElementsByClassName('top')[0].scroll(0,0);
     };
-    if(env.calibrate) {
-        // calibrate progress on good pics
-        if(Number(value) > 0) {
-            likeImage(mainpic.src);
-            calibrate--
-        };
-        if(calibrate <= 0) {
+    // calibrate progress on good pics
+    if(Number(value) > 0) {
+        likeImage(mainpic.meta, value);
+        // set as visible later
+        lastCalibratePic.later = true;
+        calibrate--
+    };
+    if(calibrate > 0) {
             // end of calibrouka
-            env.calibrate = false;
-            getNextImage(false)
-        } else {
+            // getNextImage(false)
             // random pic for calibrouka =terpim gaycontent=
-            var aboba = undefined;
-            while(aboba === undefined) {
-                aboba = database[Math.floor(Math.random() * (database.length - 0.001))]
+            lastCalibratePic = undefined;
+            while(lastCalibratePic === undefined) {
+                lastCalibratePic = database[Math.floor(Math.random() * (database.length - 0.001))]
             }
-            setPicture(aboba)
-        }
+            setPicture(lastCalibratePic)
     } else {
+        env.calibrate = false;
+        progress = 0;
+        database = [];
         rateImage = rateImageAfterCalibrate;
         autoRating();
-        getNextImage()
+        getNextImage();
+        updateMinrat(0)
     }
 };
 
@@ -449,7 +643,7 @@ function rateImageAfterCalibrate(value) {
         }
     } else {
         // saving if good/perfect
-        if(value > 0) {likeImage(mainpic.src)};
+        if(value > 0) {likeImage(mainpic.meta, value)};
         // set as visible later
         database[progress].later = true
     };
@@ -459,7 +653,7 @@ function rateImageAfterCalibrate(value) {
     // load new pics, if close to end
     if(database.length - progress < 300) {
         onloadPics = () => {};
-        sendXML()
+        sendXML(queryOnly, randompages)
     }
 };
 
